@@ -7,6 +7,7 @@
 #include "MyDB_PageReaderWriter.h"
 #include "MyDB_PageListIteratorSelfSortingAlt.h"
 #include "RecordComparator.h"
+#include "MyDB_RecordIteratorAlt.h"
 
 MyDB_BPlusTreeReaderWriter :: MyDB_BPlusTreeReaderWriter (string orderOnAttName, MyDB_TablePtr forMe, 
 	MyDB_BufferManagerPtr myBuffer) : MyDB_TableReaderWriter (forMe, myBuffer) {
@@ -32,7 +33,43 @@ MyDB_RecordIteratorAltPtr MyDB_BPlusTreeReaderWriter :: getRangeIteratorAlt (MyD
 
 
 bool MyDB_BPlusTreeReaderWriter :: discoverPages (int whichPage, vector <MyDB_PageReaderWriter> &list, MyDB_AttValPtr low, MyDB_AttValPtr high) {
-	return false;
+    queue<int> pageQ;
+    pageQ.push(whichPage);
+
+    while (!pageQ.empty()) {
+        MyDB_PageReaderWriter curPage = this->operator[](pageQ.front());
+        pageQ.pop();
+
+        if (curPage.getType() == RegularPage) {
+            list.push_back(curPage);
+        }
+
+        if (curPage.getType() != RegularPage) {
+            MyDB_INRecordPtr lowPtr = getINRecord();
+            MyDB_INRecordPtr highPtr = getINRecord();
+            MyDB_INRecordPtr tempPtr = getINRecord();
+            MyDB_RecordIteratorAltPtr tempRec = curPage.getIteratorAlt();
+
+            lowPtr -> setKey(low);
+            function<bool()> lowBound = buildComparator(tempPtr, lowPtr);
+            highPtr -> setKey(high);
+            function<bool()> highBound = buildComparator(highPtr, tempPtr);
+
+            do {
+                tempRec -> getCurrent(tempPtr);
+                if (lowBound()) {
+                    continue;
+                }
+                if (highBound()) {
+                    break;
+                }
+
+                pageQ.push(tempPtr -> getPtr());
+            } while (tempRec -> advance());
+        }
+    }
+
+    return !list.empty();
 }
 
 void MyDB_BPlusTreeReaderWriter :: append (MyDB_RecordPtr appendMe) {
