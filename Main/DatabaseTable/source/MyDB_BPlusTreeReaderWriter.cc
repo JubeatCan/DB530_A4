@@ -187,6 +187,43 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitM
 }
 
 MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: append (int whichPage, MyDB_RecordPtr appendMe) {
+
+    MyDB_PageReaderWriter pageToAddTo = (*this)[whichPage];
+
+    if (pageToAddTo.getType() == MyDB_PageType::DirectoryPage) {
+        MyDB_RecordIteratorAltPtr myIter = pageToAddTo.getIteratorAlt();
+        MyDB_INRecordPtr nextINRec = getINRecord();
+        function<bool()> myComp = buildComparator(appendMe, nextINRec);
+        while (myIter->advance()) {
+            myIter->getCurrent(nextINRec);
+            if (myComp()) {
+                MyDB_RecordPtr INRec;
+                INRec = append(nextINRec->getPtr(), appendMe);
+                // success
+                if (INRec == nullptr) {
+                    return nullptr;
+                }
+                if (pageToAddTo.append(INRec)) {
+                    MyDB_RecordPtr recPtr1 = getINRecord();
+                    MyDB_RecordPtr recPtr2 = getINRecord();
+                    function<bool()> comparator = buildComparator(recPtr1, recPtr2);
+                    pageToAddTo.sortInPlace(comparator, recPtr1, recPtr2);
+                    return nullptr;
+                }
+                return split(pageToAddTo, INRec);
+            }
+        }
+    }
+    else {
+        MyDB_PageReaderWriter leafNode = (*this)[whichPage];
+        if (leafNode.append(appendMe)) {
+            return nullptr;
+        }
+        else {
+            return split(leafNode, appendMe);
+        }
+    }
+
 	return nullptr;
 }
 
