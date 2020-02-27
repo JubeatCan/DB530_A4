@@ -24,11 +24,41 @@ MyDB_BPlusTreeReaderWriter :: MyDB_BPlusTreeReaderWriter (string orderOnAttName,
 }
 
 MyDB_RecordIteratorAltPtr MyDB_BPlusTreeReaderWriter :: getSortedRangeIteratorAlt (MyDB_AttValPtr low, MyDB_AttValPtr high) {
-	return nullptr;
+    vector<MyDB_PageReaderWriter> rangePages;
+    discoverPages(rootLocation, rangePages, low, high);
+
+    MyDB_INRecordPtr lowPtr = getINRecord();
+    MyDB_INRecordPtr highPtr = getINRecord();
+    lowPtr -> setKey(low);
+    highPtr -> setKey(high);
+    MyDB_RecordPtr tempPtr = getEmptyRecord();
+    MyDB_RecordPtr lhs = getEmptyRecord();
+    MyDB_RecordPtr rhs = getEmptyRecord();
+
+    function<bool()> lowBound = buildComparator(tempPtr, lowPtr);
+    function<bool()> highBound = buildComparator(highPtr, tempPtr);
+    function<bool()> comparator = buildComparator(lhs, rhs);
+
+	return make_shared<MyDB_PageListIteratorSelfSortingAlt>(rangePages, lhs, rhs, comparator, tempPtr, lowBound, highBound, true);
 }
 
 MyDB_RecordIteratorAltPtr MyDB_BPlusTreeReaderWriter :: getRangeIteratorAlt (MyDB_AttValPtr low, MyDB_AttValPtr high) {
-	return nullptr;
+    vector<MyDB_PageReaderWriter> rangePages;
+    discoverPages(rootLocation, rangePages, low, high);
+
+    MyDB_INRecordPtr lowPtr = getINRecord();
+    MyDB_INRecordPtr highPtr = getINRecord();
+    lowPtr -> setKey(low);
+    highPtr -> setKey(high);
+    MyDB_RecordPtr tempPtr = getEmptyRecord();
+    MyDB_RecordPtr lhs = getEmptyRecord();
+    MyDB_RecordPtr rhs = getEmptyRecord();
+
+    function<bool()> lowBound = buildComparator(tempPtr, lowPtr);
+    function<bool()> highBound = buildComparator(highPtr, tempPtr);
+    function<bool()> comparator = buildComparator(lhs, rhs);
+
+    return make_shared<MyDB_PageListIteratorSelfSortingAlt>(rangePages, lhs, rhs, comparator, tempPtr, lowBound, highBound, false);
 }
 
 
@@ -48,7 +78,7 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int whichPage, vector <MyDB_Pa
             MyDB_INRecordPtr lowPtr = getINRecord();
             MyDB_INRecordPtr highPtr = getINRecord();
             MyDB_INRecordPtr tempPtr = getINRecord();
-            MyDB_RecordIteratorAltPtr tempRec = curPage.getIteratorAlt();
+            MyDB_RecordIteratorAltPtr tempRecIt = curPage.getIteratorAlt();
 
             lowPtr -> setKey(low);
             function<bool()> lowBound = buildComparator(tempPtr, lowPtr);
@@ -56,7 +86,7 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int whichPage, vector <MyDB_Pa
             function<bool()> highBound = buildComparator(highPtr, tempPtr);
 
             do {
-                tempRec -> getCurrent(tempPtr);
+                tempRecIt -> getCurrent(tempPtr);
                 if (lowBound()) {
                     continue;
                 }
@@ -65,7 +95,7 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int whichPage, vector <MyDB_Pa
                 }
 
                 pageQ.push(tempPtr -> getPtr());
-            } while (tempRec -> advance());
+            } while (tempRecIt -> advance());
         }
     }
 
