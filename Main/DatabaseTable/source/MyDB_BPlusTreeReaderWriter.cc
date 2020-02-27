@@ -85,7 +85,7 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int whichPage, vector <MyDB_Pa
             highPtr -> setKey(high);
             function<bool()> highBound = buildComparator(highPtr, tempPtr);
 
-            do {
+            while (tempRecIt -> advance()) {
                 tempRecIt -> getCurrent(tempPtr);
                 if (lowBound()) {
                     continue;
@@ -95,7 +95,7 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int whichPage, vector <MyDB_Pa
                 }
 
                 pageQ.push(tempPtr -> getPtr());
-            } while (tempRecIt -> advance());
+            }
         }
     }
 
@@ -136,7 +136,54 @@ void MyDB_BPlusTreeReaderWriter :: append (MyDB_RecordPtr appendMe) {
 }
 
 MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitMe, MyDB_RecordPtr andMe) {
-	return nullptr;
+    MyDB_PageReaderWriter newPage = this->operator[](getTable()->lastPage() + 1);
+    MyDB_PageType currentType = splitMe.getType();
+    MyDB_RecordPtr lhs, rhs;
+    function<bool ()> comparator, insertionComp;
+    if (currentType == RegularPage) {
+        lhs = getEmptyRecord();
+        rhs = getEmptyRecord();
+    } else if (currentType == DirectoryPage) {
+        lhs = getINRecord();
+        rhs = getINRecord();
+    }
+    MyDB_INRecordPtr newIN = getINRecord();
+    newPage.setType(currentType);
+    comparator = buildComparator(lhs, rhs);
+    RecordComparator comp (comparator, lhs, rhs);
+
+    if (currentType == RegularPage) {
+        splitMe.sortInPlace(comparator, lhs, rhs);
+    }
+
+    vector<MyDB_RecordPtr> listToSplit;
+    MyDB_RecordIteratorAltPtr it = splitMe.getIteratorAlt();
+    while (it->advance()) {
+        MyDB_RecordPtr temp;
+        if (currentType == RegularPage) {
+            temp = getEmptyRecord();
+        } else if (currentType = DirectoryPage) {
+            temp = getINRecord();
+        }
+        it->getCurrent(temp);
+        listToSplit.push_back(temp);
+    }
+
+    listToSplit.insert(lower_bound(listToSplit.begin(), listToSplit.end(), comp), andMe);
+    splitMe.clear();
+
+    MyDB_RecordPtr temp;
+    int i;
+    for (i = 0; i < (listToSplit.size()+1)/2; i++) {
+        newPage.append(listToSplit[i]);
+    }
+    newIN->setPtr(getTable()->lastPage());
+    newIN->setKey(getKey(listToSplit[i - 1]));
+    for (; i < listToSplit.size(); i++) {
+        splitMe.append(listToSplit[i]);
+    }
+
+	return newIN;
 }
 
 MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: append (int whichPage, MyDB_RecordPtr appendMe) {
