@@ -103,6 +103,36 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int whichPage, vector <MyDB_Pa
 }
 
 void MyDB_BPlusTreeReaderWriter :: append (MyDB_RecordPtr appendMe) {
+    if (rootLocation == -1) {
+        MyDB_PageReaderWriter newRoot = this->operator[](0);
+        MyDB_INRecordPtr newIN = getINRecord();
+        MyDB_PageReaderWriter newLeaf = this->operator[](1);
+
+        newRoot.clear();
+        newIN->setPtr(1);
+        newLeaf.append(appendMe);
+        newLeaf.setType(RegularPage);
+        newRoot.setType(DirectoryPage);
+        newRoot.append(newIN);
+        getTable() -> setRootLocation(0);
+        rootLocation = 0;
+    } else {
+        MyDB_RecordPtr newRecInRoot = append(rootLocation, appendMe);
+
+        if (newRecInRoot == nullptr) {
+            return;
+        } else {
+            MyDB_PageReaderWriter newRoot = this->operator[](getTable()->lastPage() + 1);
+            MyDB_INRecordPtr newInfIN = getINRecord();
+            newRoot.setType(DirectoryPage);
+            newRoot.append(newRecInRoot);
+            newInfIN->setPtr(rootLocation);
+            newRoot.append(newInfIN);
+
+            rootLocation = getTable()->lastPage();
+            getTable()->setRootLocation(rootLocation);
+        }
+    }
 }
 
 MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitMe, MyDB_RecordPtr andMe) {
