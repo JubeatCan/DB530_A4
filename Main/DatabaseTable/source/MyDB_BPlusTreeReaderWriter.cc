@@ -180,9 +180,15 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitM
         listToSplit.push_back(andMe);
     }
     splitMe.clear();
+    if (currentType == DirectoryPage) {
+        splitMe.setType(DirectoryPage);
+    }
     MyDB_RecordPtr temp;
     int i;
     for (i = 0; i < (listToSplit.size()+1)/2; i++) {
+//        if (currentType == DirectoryPage && i == ((listToSplit.size()+1)/2 - 1)) {
+//            continue;
+//        }
         newPage.append(listToSplit[i]);
     }
     newIN->setPtr(getTable()->lastPage());
@@ -190,6 +196,12 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitM
     for (; i < listToSplit.size(); i++) {
         splitMe.append(listToSplit[i]);
     }
+
+//    if (currentType == DirectoryPage) {
+//        MyDB_INRecordPtr infRec = getINRecord();
+//        infRec->setPtr(newIN->getPtr());
+//        newPage.append(infRec);
+//    }
 
 	return newIN;
 }
@@ -234,7 +246,7 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: append (int whichPage, MyDB_RecordP
 
 	return nullptr;
 }
-//
+
 MyDB_INRecordPtr MyDB_BPlusTreeReaderWriter :: getINRecord () {
 	return make_shared <MyDB_INRecord> (orderingAttType->createAttMax ());
 }
