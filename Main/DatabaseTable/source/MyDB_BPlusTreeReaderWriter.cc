@@ -168,7 +168,7 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitM
         it->getCurrent(temp);
         if (!flag) {
             insertionComp = buildComparator(andMe, temp);
-            if (!insertionComp()) {
+            if (insertionComp()) {
                 flag = true;
                 listToSplit.push_back(andMe);
             }
@@ -183,12 +183,8 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitM
     if (currentType == DirectoryPage) {
         splitMe.setType(DirectoryPage);
     }
-    MyDB_RecordPtr temp;
     int i;
     for (i = 0; i < (listToSplit.size()+1)/2; i++) {
-//        if (currentType == DirectoryPage && i == ((listToSplit.size()+1)/2 - 1)) {
-//            continue;
-//        }
         newPage.append(listToSplit[i]);
     }
     newIN->setPtr(getTable()->lastPage());
@@ -197,12 +193,6 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitM
         splitMe.append(listToSplit[i]);
     }
 
-//    if (currentType == DirectoryPage) {
-//        MyDB_INRecordPtr infRec = getINRecord();
-//        infRec->setPtr(newIN->getPtr());
-//        newPage.append(infRec);
-//    }
-
 	return newIN;
 }
 
@@ -210,7 +200,7 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: append (int whichPage, MyDB_RecordP
 
     MyDB_PageReaderWriter pageToAddTo = (*this)[whichPage];
 
-    if (pageToAddTo.getType() == MyDB_PageType::DirectoryPage) {
+    if (pageToAddTo.getType() == DirectoryPage) {
         MyDB_RecordIteratorAltPtr myIter = pageToAddTo.getIteratorAlt();
         MyDB_INRecordPtr nextINRec = getINRecord();
         function<bool()> myComp = buildComparator(appendMe, nextINRec);
@@ -233,14 +223,12 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: append (int whichPage, MyDB_RecordP
                 return split(pageToAddTo, INRec);
             }
         }
-    }
-    else {
-        MyDB_PageReaderWriter leafNode = (*this)[whichPage];
-        if (leafNode.append(appendMe)) {
+    } else if (pageToAddTo.getType() == RegularPage) {
+        if (pageToAddTo.append(appendMe)) {
             return nullptr;
         }
         else {
-            return split(leafNode, appendMe);
+            return split(pageToAddTo, appendMe);
         }
     }
 
@@ -252,6 +240,34 @@ MyDB_INRecordPtr MyDB_BPlusTreeReaderWriter :: getINRecord () {
 }
 
 void MyDB_BPlusTreeReaderWriter :: printTree () {
+    queue<int> q;
+    q.push(getTable()->getRootLocation());
+
+    while (!q.empty()) {
+        int pageNo = q.front();
+        q.pop();
+        MyDB_PageReaderWriter curPage = this->operator[](pageNo);
+        MyDB_RecordIteratorAltPtr it = curPage.getIteratorAlt();
+
+        if (curPage.getType() == DirectoryPage) {
+            printf("IN at %d: ", pageNo);
+            while (it->advance()) {
+                MyDB_INRecordPtr p = getINRecord();
+                it->getCurrent(p);
+                printf("%s ", p->getKey()->toString().c_str());
+                q.push(p->getPtr());
+            }
+        } else if (curPage.getType() == RegularPage) {
+            printf("Leaves at %d: ", pageNo);
+            while (it->advance()) {
+                MyDB_RecordPtr p = getEmptyRecord();
+                it->getCurrent(p);
+                printf("%s ", p->getAtt(whichAttIsOrdering)->toString().c_str());
+            }
+        }
+
+        printf("\n");
+    }
 }
 
 
