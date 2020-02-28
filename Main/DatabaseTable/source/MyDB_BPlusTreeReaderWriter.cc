@@ -23,6 +23,7 @@ MyDB_BPlusTreeReaderWriter :: MyDB_BPlusTreeReaderWriter (string orderOnAttName,
 	rootLocation = getTable ()->getRootLocation ();
 }
 
+// Check passed
 MyDB_RecordIteratorAltPtr MyDB_BPlusTreeReaderWriter :: getSortedRangeIteratorAlt (MyDB_AttValPtr low, MyDB_AttValPtr high) {
     vector<MyDB_PageReaderWriter> rangePages;
     discoverPages(rootLocation, rangePages, low, high);
@@ -42,6 +43,7 @@ MyDB_RecordIteratorAltPtr MyDB_BPlusTreeReaderWriter :: getSortedRangeIteratorAl
 	return make_shared<MyDB_PageListIteratorSelfSortingAlt>(rangePages, lhs, rhs, comparator, tempPtr, lowBound, highBound, true);
 }
 
+// Check passed
 MyDB_RecordIteratorAltPtr MyDB_BPlusTreeReaderWriter :: getRangeIteratorAlt (MyDB_AttValPtr low, MyDB_AttValPtr high) {
     vector<MyDB_PageReaderWriter> rangePages;
     discoverPages(rootLocation, rangePages, low, high);
@@ -61,7 +63,7 @@ MyDB_RecordIteratorAltPtr MyDB_BPlusTreeReaderWriter :: getRangeIteratorAlt (MyD
     return make_shared<MyDB_PageListIteratorSelfSortingAlt>(rangePages, lhs, rhs, comparator, tempPtr, lowBound, highBound, false);
 }
 
-
+// Check passed
 bool MyDB_BPlusTreeReaderWriter :: discoverPages (int whichPage, vector <MyDB_PageReaderWriter> &list, MyDB_AttValPtr low, MyDB_AttValPtr high) {
     queue<int> pageQ;
     pageQ.push(whichPage);
@@ -90,11 +92,10 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int whichPage, vector <MyDB_Pa
                 if (lowBound()) {
                     continue;
                 }
+                pageQ.push(tempPtr -> getPtr());
                 if (highBound()) {
                     break;
                 }
-
-                pageQ.push(tempPtr -> getPtr());
             }
         }
     }
@@ -150,28 +151,35 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitM
     MyDB_INRecordPtr newIN = getINRecord();
     newPage.setType(currentType);
     comparator = buildComparator(lhs, rhs);
-    RecordComparator comp (comparator, lhs, rhs);
 
     if (currentType == RegularPage) {
         splitMe.sortInPlace(comparator, lhs, rhs);
     }
-
+    bool flag = false;
     vector<MyDB_RecordPtr> listToSplit;
     MyDB_RecordIteratorAltPtr it = splitMe.getIteratorAlt();
     while (it->advance()) {
         MyDB_RecordPtr temp;
         if (currentType == RegularPage) {
             temp = getEmptyRecord();
-        } else if (currentType = DirectoryPage) {
+        } else if (currentType == DirectoryPage) {
             temp = getINRecord();
         }
         it->getCurrent(temp);
+        if (!flag) {
+            insertionComp = buildComparator(andMe, temp);
+            if (!insertionComp()) {
+                flag = true;
+                listToSplit.push_back(andMe);
+            }
+        }
         listToSplit.push_back(temp);
     }
 
-    listToSplit.insert(lower_bound(listToSplit.begin(), listToSplit.end(), comp), andMe);
+    if (!flag) {
+        listToSplit.push_back(andMe);
+    }
     splitMe.clear();
-
     MyDB_RecordPtr temp;
     int i;
     for (i = 0; i < (listToSplit.size()+1)/2; i++) {
@@ -226,7 +234,7 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: append (int whichPage, MyDB_RecordP
 
 	return nullptr;
 }
-
+//
 MyDB_INRecordPtr MyDB_BPlusTreeReaderWriter :: getINRecord () {
 	return make_shared <MyDB_INRecord> (orderingAttType->createAttMax ());
 }
@@ -234,14 +242,20 @@ MyDB_INRecordPtr MyDB_BPlusTreeReaderWriter :: getINRecord () {
 void MyDB_BPlusTreeReaderWriter :: printTree () {
 }
 
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
 MyDB_AttValPtr MyDB_BPlusTreeReaderWriter :: getKey (MyDB_RecordPtr fromMe) {
 
 	// in this case, got an IN record
-	if (fromMe->getSchema () == nullptr) 
+	if (fromMe->getSchema () == nullptr)
 		return fromMe->getAtt (0)->getCopy ();
 
 	// in this case, got a data record
-	else 
+	else
 		return fromMe->getAtt (whichAttIsOrdering)->getCopy ();
 }
 
@@ -251,7 +265,7 @@ function <bool ()>  MyDB_BPlusTreeReaderWriter :: buildComparator (MyDB_RecordPt
 
 	// in this case, the LHS is an IN record
 	if (lhs->getSchema () == nullptr) {
-		lhAtt = lhs->getAtt (0);	
+		lhAtt = lhs->getAtt (0);
 
 	// here, it is a regular data record
 	} else {
@@ -260,13 +274,13 @@ function <bool ()>  MyDB_BPlusTreeReaderWriter :: buildComparator (MyDB_RecordPt
 
 	// in this case, the LHS is an IN record
 	if (rhs->getSchema () == nullptr) {
-		rhAtt = rhs->getAtt (0);	
+		rhAtt = rhs->getAtt (0);
 
 	// here, it is a regular data record
 	} else {
 		rhAtt = rhs->getAtt (whichAttIsOrdering);
 	}
-	
+
 	// now, build the comparison lambda and return
 	if (orderingAttType->promotableToInt ()) {
 		return [lhAtt, rhAtt] {return lhAtt->toInt () < rhAtt->toInt ();};
